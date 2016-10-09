@@ -14,7 +14,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
     on_dirEdit_editingFinished();
 }
-
 MainWindow::~MainWindow()
 {
     if(region != nullptr)
@@ -40,109 +39,53 @@ void MainWindow::complete()
     ui->progressBar->setTextVisible(false);
     ui->dirEdit->setEnabled(true);
 }
-
 void MainWindow::regionComplete()
 {
-    if(!chunkLifters.empty()) // This should be empty, but if it isn't, make sure it gets cleaned up
-    {
-        for(ChunkLifter* cl : chunkLifters)
-        {
-            delete cl;
-        }
-        chunkLifters.clear();
-    }
-
-    if(!running) // We were aborted, discard the last region
-    {
-        if(region != nullptr)
-        {
-            delete region;
-        }
-        regionFiles.clear();
-        complete();
-        return;
-    }
-
     if(region != nullptr) // Clean up memory
     {
         region->save();
         delete region;
         region = nullptr;
     }
-
     if(regionFiles.empty()) // We finished the last region file
     {
         complete();
-        return;
-    }
-
-    qDebug() << "Getting next region";
-    QString nextFilename = regionFiles.dequeue(); // Get next region file
-    QFileInfo fi(nextFilename);
-    ui->statusBar->showMessage(fi.fileName()); // Show the filename being processed
-    region = new Region(nextFilename); // Create the new file object
-
-    if(region->size() == 0)
-    {
-        delete region; // If the region is invalid, get rid of it
     }
     else
     {
-        region->load(); // Load the region
-        for(int i=0; i<1024; ++i) // Add the new region's chunks to the queue to be lifted
+        ui->statusBar->showMessage(QFileInfo(regionFiles.first()).fileName()); // Show the filename being processed
+        region = new Region(regionFiles.dequeue());
+        region->load();
+        threadsRunning = 0;
+        for(int i=0; i<1024; ++i)
         {
-            if(region->chunks[i])
+            if(region->chunks[i] != nullptr)
             {
-                qDebug() << "Adding thread";
-                ChunkLifter* newThread = new ChunkLifter(region->chunks[i]); // Create a new lifter thread for each existing chunk
-                connect(newThread, SIGNAL(complete()), this, SLOT(chunkComplete())); // Allow the thread to send a signal to the gui
-                chunkLifters.append(newThread); // Attach the thread to a chunk
+                connect(this, SIGNAL(lift()), region->chunks[i], SLOT(lift()));
+                connect(region->chunks[i], SIGNAL(complete(int)), this, SLOT(chunkComplete()));
+                ++threadsRunning;
             }
         }
-
-        qDebug() << chunkLifters.size();
-    }
-
-    // Start n threads
-    threadsRunning = 0;
-    for(nextThread = 0; nextThread < QThread::idealThreadCount() && nextThread < chunkLifters.size(); ++nextThread)
-    {
-        qDebug() << "Starting thread";
-        chunkLifters[nextThread]->start();
-        ++threadsRunning;
+        emit lift();
     }
 }
-
 void MainWindow::chunkComplete()
 {
     --threadsRunning;
     ui->progressBar->setValue(ui->progressBar->value() + 1);
 
-    if(nextThread == chunkLifters.size() || !running) // There's no more threads to run
+    if(threadsRunning == 0)
     {
-        if(threadsRunning == 0) // We were the last thread
-        {
-            regionComplete();
-        }
-    }
-    else
-    {
-        if(threadsRunning < QThread::idealThreadCount() && nextThread < chunkLifters.size()) // We're clear to start a new thread
-        {
-            chunkLifters[nextThread]->start();
-            ++nextThread;
-            ++threadsRunning;
-        }
+        regionComplete();
     }
 }
-
 void MainWindow::on_dirEdit_editingFinished()
 {
     QDir dir(ui->dirEdit->text());
     if(dir.exists())
     {
         regionFiles.clear();
-        QDirIterator iter(dir.absolutePath(), QStringList() << "*.mca", QDir::Files, QDirIterator::NoIteratorFlags);
+        QDirIterator iter(dir.absolutePath(), QStringList() << "r.0.0.mca", QDir::Files, QDirIterator::NoIteratorFlags);
         while(iter.hasNext())
         {
             regionFiles.append(iter.next());
@@ -160,10 +103,13 @@ void MainWindow::on_dirEdit_editingFinished()
             region = nullptr;
         }
 
-        ui->statusBar->showMessage(QString("Ready to lift %1 map files (%2 chunks)").arg(regionFiles.size()).arg(chunks));
-        ui->startButton->setEnabled(true);
-        ui->progressBar->setMaximum(1024*regionFiles.size());
-        ui->progressBar->setTextVisible(true);
+        if(chunks > 0)
+        {
+            ui->statusBar->showMessage(QString("Ready to lift %1 map files (%2 chunks)").arg(regionFiles.size()).arg(chunks));
+            ui->startButton->setEnabled(true);
+            ui->progressBar->setMaximum(chunks);
+            ui->progressBar->setTextVisible(true);
+        }
     }
     else
     {
@@ -172,7 +118,6 @@ void MainWindow::on_dirEdit_editingFinished()
         ui->progressBar->setTextVisible(false);
     }
 }
-
 void MainWindow::on_startButton_clicked()
 {
     if(!running)
@@ -182,7 +127,6 @@ void MainWindow::on_startButton_clicked()
         ui->amountSpinBox->setEnabled(false);
         ui->startButton->setText("Stop");
         ui->dirEdit->setEnabled(false);
-        ChunkLifter::configure(ui->bottomSpinBox->value(), ui->amountSpinBox->value());
 
         running = true;
         timer.restart();

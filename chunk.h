@@ -1,21 +1,31 @@
 #ifndef CHUNK_H
 #define CHUNK_H
 
-#include "block.h"
-#include <stdint.h>
 #include <QByteArray>
+#include <QThread>
+#include <QObject>
+#include "nbttag.h"
+#include <QDateTime>
 
-class Chunk
+class Chunk : public QObject
 {
+    Q_OBJECT
+public slots:
+    void lift();
+
+signals:
+    void complete(int);
+
 public:
-    Chunk();
+    Chunk(unsigned int location, unsigned int timestamp);
     ~Chunk();
 
-    uint32_t bytes;
-    uint8_t compressionType;
-    QByteArray compressedData;
-    QByteArray uncompressedData;
-    //Block blocks[16][256][16];
+    unsigned int offset;
+    unsigned int size;
+    char compressionType;
+    QDateTime time;
+    QByteArray data;
+    NbtTree tree;
 };
 
 #endif // CHUNK_H

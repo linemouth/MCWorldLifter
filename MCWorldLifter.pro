@@ -16,14 +16,15 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     region.cpp \
     chunk.cpp \
-    chunklifter.cpp
+    nbttag.cpp
 
 HEADERS  += mainwindow.h \
     region.h \
     chunk.h \
-    chunklifter.h \
     zconf.h \
-    zlib.h
+    zlib.h \
+    nbttag.h \
+    util.h
 
 FORMS    += mainwindow.ui
 

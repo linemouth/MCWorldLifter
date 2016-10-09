@@ -2,7 +2,6 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include "chunklifter.h"
 #include "region.h"
 #include <QElapsedTimer>
 #include <QList>
@@ -15,6 +14,8 @@ class MainWindow;
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
+signals:
+    void lift();
 
 public:
     explicit MainWindow(QWidget *parent = 0);
@@ -34,8 +35,6 @@ private:
     bool running;
     Region* region;
     QQueue<QString> regionFiles;
-    QList<ChunkLifter*> chunkLifters;
-    int nextThread;
     int threadsRunning;
     QElapsedTimer timer;
 };
